@@ -19,13 +19,30 @@ HEADERS = {
 app = Flask(__name__)
 
 
-def get_data(sess, cookies, url):
-    """Fetch data from NSE API"""
-    response = sess.get(url, headers=HEADERS, timeout=60, cookies=cookies)
-    if response.status_code == 401:  # Refresh cookies if unauthorized
-        cookies = set_cookie(sess)
-        response = sess.get(url, headers=HEADERS, timeout=60, cookies=cookies)
-    return response.text if response.status_code == 200 else ""
+def get_data(sess, cookies, url, retries=3, delay=5):
+    """Fetch data from NSE API with retries"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0 Safari/537.36',
+        'Referer': 'https://www.nseindia.com/',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    
+    for attempt in range(retries):
+        try:
+            response = sess.get(url, headers=headers, timeout=20, cookies=cookies)
+            if response.status_code == 403:
+                print(f"[ERROR] NSE blocking request (403 Forbidden). Retrying in {delay} seconds...")
+                time.sleep(delay)
+                continue  # Try again
+            
+            if response.status_code == 200:
+                return response.text
+            
+        except requests.exceptions.ReadTimeout:
+            print(f"[ERROR] Request timed out. Retrying in {delay} seconds...")
+            time.sleep(delay)
+
+    return ""  # Return empty response after max retries
 
 
 def set_cookie(sess):
